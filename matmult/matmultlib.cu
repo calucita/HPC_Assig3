@@ -100,10 +100,11 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C)
 
 __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 {
+	// since using 4 sums would make us run out of registers, we use
+	//  a simple second loop to make the other two calculations.
 	int j,i, mlim=m/2,nlim=n/2;
 	int Idx=blockIdx.x*blockDim.x+threadIdx.x;
 	int Idy=blockIdx.y*blockDim.y+threadIdx.y;
-//	int mdx=Idx+mlim;
 	int ndy=Idy+nlim;	
 	if (Idx < mlim && Idy < nlim) {
 		for (i=Idx;i<m; i+=mlim){
@@ -111,14 +112,10 @@ __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 			for(j=0;j<k;j++){
 				sum1+=a[i*k+j]*b[Idy+j*n];
 				sum2+=a[i*k+j]*b[ndy+j*n];
-			//	sum3+=a[mdx*k+j]*b[Idy+j*n];
-			//	sum4+=a[mdx*k+j]*b[ndy+j*n];
 			}
 			if(i==2*m){printf("hello! bastard...\n");}
 			c[Idy+i*n]=sum1;
 			c[ndy+i*n]=sum2;		
-		//	c[Idy+mdx*n]=sum3;
-		//	c[ndy+mdx*n]=sum4;
 		}
 	}
 }
