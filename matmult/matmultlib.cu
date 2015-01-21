@@ -10,18 +10,36 @@
 
 #ifndef MATMULT_LIB_H
 #define MATMULT_LIB_H
-
+extern "C" {
+#include <cblas.h>
 void matmult_lib(int m, int n, int k, double **A, double **B, double **C){
 	double alpha, beta;
 	char transa, transb;
-	int i,j;
 	alpha = 1.0; beta = 0.0;
 	transa = 'n', transb='n';
   
-	dgemm(transa, transb, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);
+//	cblas_dgemm(transa, transb, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);
 		
 }
+void matmult_gpulib(int m, int n, int k, double **A, double **B, double **C){
+	double alpha, beta,**A_d, **B_d, **C_d;
+	char transa, transb;
+	int i;
+	alpha = 1.0; beta = 0.0;
+	transa = 'n', transb='n';
+	checkCudaErrors(cudaMalloc((void**)&A_d, (m*sizeof(double*))));
+	checkCudaErrors(cudaMalloc((void**)&B_d, (k*sizeof(double*))));
+	checkCudaErrors(cudaMalloc((void**)&C_d, (m*sizeof(double*)))); 
+	for(i = 0; i < m; i++)	{
+		 checkCudaErrors(cudaMalloc((void**)&A_d[i],(k * sizeof(double))));
+	}
 
+
+	
+	
+//	dgemm(transa, transb, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);
+		
+}
 void matmult_nat(int m, int n, int k, double **A, double **B, double **C){
 	int i,j,t;
 	for ( i = 0; i < m ; i++){
@@ -123,7 +141,7 @@ void matmult_kmn(int m, int n, int k, double **A, double **B, double **C){
 }
 
 void matmult_blk(int m, int n, int l, double **A, double **B, double **C, int bb){
-	int i,j,k,ii,jj,kk;
+	int i,j,k,jj,kk;
 	for ( i = 0; i < m ; i++){
 		for ( j = 0; j < n; j++){
 			C[i][j]=0;
@@ -147,7 +165,7 @@ void matmult_blk(int m, int n, int l, double **A, double **B, double **C, int bb
 	}
 }
 
-
+}
 
 
 
