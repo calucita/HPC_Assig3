@@ -6,41 +6,31 @@
 #include <helper_functions.h> 
 #include <sys/time.h>
 
-#define MAX_ITER 10000
-#define NODES 514 // boundaries included
+#define MAX_ITER 1000
+#define NODES 10 // boundaries included
 
 
 
-__global__ void kernel_jacobi(double *u, double *u_old, double *f, int N, int max_iter){
+__global__ void kernel_jacobi(double *u, double *u_old, double *f, int N){
 
 	
-	int i,j,k;
-	double h, *temp;
+	int i,j;
+	double h;
 
 	h = 2.0/((double)N-1);
-	k = 1;
 
+	i = blockIdx.y * blockDim.y + threadIdx.y+1;
 	j = blockIdx.x * blockDim.x + threadIdx.x+1;
 
 	// computing solution
 	
-	while(k < max_iter){
-			
-		temp = u;
-		u = u_old;
-		u_old = temp;	
-
-		// update solution
-		if (j < N-1){
-			for(i=1; i< N-1; i++){
-				u[i+j*N] = 0.25 * ( u_old[(i-1)+j*N] + u_old[(i+1)+j*N] + \
-						    u_old[i+(j-1)*N] + u_old[i+(j+1)*N] + \
-					            h*h*f[i+j*N] );	
-			}
-		}
-		k++;
+	if (j < N-1 && i < N-1){
 		
-	} /* end while */
+		u[i+j*N] = 0.25 * ( u_old[(i-1)+j*N] + u_old[(i+1)+j*N] + \
+				    u_old[i+(j-1)*N] + u_old[i+(j+1)*N] + \
+			            h*h*f[i+j*N] );	
+	}
+	
 }
 
 int main(int argc, char *argv[])
@@ -48,28 +38,28 @@ int main(int argc, char *argv[])
 
 	int N = NODES;
 	int sizeXGrid = 1;
-	int sizeXBlock = N-2;
+	int sizeXBlock = N-2; 
 
 	if (argc == 2)
 	{	
 		N = atoi(argv[1]);
-		if (N <= 514){
+		if (N <= 24){ 
 			sizeXBlock = N-2;
 			sizeXGrid = 1;
 		} else {	
-			sizeXBlock = 512;
+			sizeXBlock = 22; 
 			sizeXGrid = ((N-2)+sizeXBlock-1)/sizeXBlock;
 		}
 	}
 
 	// variables declaration
-	int i, j, max_iter;
+	int i, j, k, max_iter;
 	double *u_h, *u_old_h, *f_h;
 	double *u_d, *u_old_d, *f_d;
-	double conv;
+	double conv, *temp;
 
-	dim3 DimGrid = sizeXGrid;
-	dim3 DimBlock = sizeXBlock;
+	dim3 DimGrid(sizeXGrid,sizeXGrid);
+	dim3 DimBlock(sizeXBlock,sizeXBlock); // 484 threads per block 
 
 	max_iter = MAX_ITER;
 	
@@ -115,8 +105,15 @@ int main(int argc, char *argv[])
 
 	// calling kernel and taking time	
 	sdkStartTimer(&timeKer);
-	kernel_jacobi<<< DimGrid, DimBlock >>>(u_d, u_old_d, f_d, N, max_iter);
-	cudaDeviceSynchronize();
+	k = 1;
+	while (k < max_iter){
+		temp = u_d;
+		u_d = u_old_d;
+		u_old_d = temp;
+		kernel_jacobi<<< DimGrid, DimBlock >>>(u_d, u_old_d, f_d, N);
+		cudaDeviceSynchronize();
+		k++;
+	}
 	sdkStopTimer(&timeKer);
 
 	// copying from device to host
@@ -125,7 +122,7 @@ int main(int argc, char *argv[])
 	// print solution
 	FILE * fp;
 
-   	fp = fopen ("solution.txt", "w+");
+   	fp = fopen ("solution2.txt", "w+");
 
 	for(j=0; j<N; j++){
 		for(i=0; i< N; i++){
@@ -139,8 +136,8 @@ int main(int argc, char *argv[])
 	// print time
 	double tK = sdkGetTimerValue(&timeKer);
 	printf("Kernel time: %f \n", tK/1e3);
-	printf("Block size: %i \n", sizeXBlock);
-	printf("Grid size: %i \n", sizeXGrid);
+	printf("Block size: %i x %i \n", sizeXBlock,sizeXBlock);
+	printf("Grid size: %i x %i \n", sizeXGrid, sizeXGrid);
 
 	// freeing memory	
 	free(u_old_h);
