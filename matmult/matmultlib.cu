@@ -14,11 +14,11 @@ extern "C" {
 #include <cblas.h>
 void matmult_lib(int m, int n, int k, double **A, double **B, double **C){
 	double alpha, beta;
-	char transa, transb;
+//	char transa, transb;
 	alpha = 1.0; beta = 0.0;
-	transa = 'n', transb='n';
+//	transa = 'n', transb='n';
   
-//	cblas_dgemm(transa, transb, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);
+	cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);
 		
 }
 void matmult_gpulib(int m, int n, int k, double **A, double **B, double **C){
