@@ -5,10 +5,9 @@
 #include <helper_cuda.h>
 #include <helper_functions.h> 
 #include <sys/time.h>
-#include <time.h>
 
 #define MAX_ITER 10000
-#define NODES 8  // boundaries included
+#define NODES 514 // boundaries included
 
 
 
@@ -32,14 +31,13 @@ __global__ void kernel_jacobi(double *u, double *u_old, double *f, int N, int ma
 		u_old = temp;	
 
 		// update solution
-		//for(j=1; j<N-1; j++){
+		if (j < N-1){
 			for(i=1; i< N-1; i++){
 				u[i+j*N] = 0.25 * ( u_old[(i-1)+j*N] + u_old[(i+1)+j*N] + \
 						    u_old[i+(j-1)*N] + u_old[i+(j+1)*N] + \
 					            h*h*f[i+j*N] );	
 			}
-		//}
-
+		}
 		k++;
 		
 	} /* end while */
@@ -52,7 +50,20 @@ int main(int argc, char *argv[])
 	int sizeXGrid = 1;
 	int sizeXBlock = N-2;
 
-	int i, j, k, max_iter;
+	if (argc == 2)
+	{	
+		N = atoi(argv[1]);
+		if (N <= 514){
+			sizeXBlock = N-2;
+			sizeXGrid = 1;
+		} else {	
+			sizeXBlock = 512;
+			sizeXGrid = ((N-2)+sizeXBlock-1)/sizeXBlock;
+		}
+	}
+
+	// variables declaration
+	int i, j, max_iter;
 	double *u_h, *u_old_h, *f_h;
 	double *u_d, *u_old_d, *f_d;
 	double conv;
@@ -62,6 +73,9 @@ int main(int argc, char *argv[])
 
 	max_iter = MAX_ITER;
 	
+	// initializing stopwatches
+	StopWatchInterface *timeKer;
+	sdkCreateTimer(&timeKer);
 
 	// allocating solution and forcing term in the host 
 	f_h     = (double *)malloc(N*N * sizeof(double));
@@ -70,7 +84,7 @@ int main(int argc, char *argv[])
 
 	
 	//initialinzing solution and forcing term
-	conv = 2.0/((double)N-1);
+	conv = 2.0/((double)N);
 	for(j=0; j<N; j++){
 		for(i=0; i<N; i++)
 		{		
@@ -81,7 +95,8 @@ int main(int argc, char *argv[])
 
 			u_h[i+j*N] = 0;
 			u_old_h[i+j*N] = 0;
-			if(i == 0 || j == N-1 || i == N-1){ // boundary condition u(1,y) and u(-1,y)
+			// boundary conditions
+			if(i == 0 || j == N-1 || i == N-1){ 
 				u_h[i+j*N] = 20;
 				u_old_h[i+j*N] = 20;
 			}
@@ -93,13 +108,16 @@ int main(int argc, char *argv[])
 	cudaMalloc((void**)&u_d,N*N * sizeof(double));
 	cudaMalloc((void**)&u_old_d,N*N * sizeof(double));
 
-	// copying from device to host
+	// copying from host to device
 	cudaMemcpy(u_d,u_h, N*N*sizeof(double),cudaMemcpyHostToDevice);
 	cudaMemcpy(u_old_d,u_old_h, N*N*sizeof(double),cudaMemcpyHostToDevice);
 	cudaMemcpy(f_d,f_h, N*N*sizeof(double),cudaMemcpyHostToDevice);
 
-	// calling kernel	
+	// calling kernel and taking time	
+	sdkStartTimer(&timeKer);
 	kernel_jacobi<<< DimGrid, DimBlock >>>(u_d, u_old_d, f_d, N, max_iter);
+	cudaDeviceSynchronize();
+	sdkStopTimer(&timeKer);
 
 	// copying from device to host
 	cudaMemcpy(u_h,u_d, N*N *sizeof(double),cudaMemcpyDeviceToHost);
@@ -118,11 +136,19 @@ int main(int argc, char *argv[])
    
    	fclose(fp);	
 
+	// print time
+	double tK = sdkGetTimerValue(&timeKer);
+	printf("Kernel time: %f \n", tK/1e3);
+	printf("Block size: %i \n", sizeXBlock);
+	printf("Grid size: %i \n", sizeXGrid);
 
 	// freeing memory	
 	free(u_old_h);
 	free(u_h);
 	free(f_h);
+	cudaFree(u_old_d);
+	cudaFree(u_d);
+	cudaFree(f_d);
 	
 	return 0;
 
