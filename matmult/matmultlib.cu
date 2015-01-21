@@ -6,12 +6,14 @@
 #include <helper_cuda.h>
 #include <helper_functions.h>
 #include <sys/time.h>
+#include <cublas.h>
 
 #define min(a,b)(((a)<(b))?(a):(b))
 
 #ifndef MATMULT_LIB_H
 #define MATMULT_LIB_H
 extern "C" {
+#include <cblas.h>
 
 __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 {
@@ -163,22 +165,6 @@ void matmult_gpu1(int m, int n, int k, double **A, double **B, double **C)
 	cudaFree(b_d);
 	cudaFree(c_d);
 }
-}
-
-#endif#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <cuda_runtime.h>
-#include <helper_cuda.h>
-#include <helper_functions.h>
-#include <cublas.h>
-
-#define min(a,b)(((a)<(b))?(a):(b))
-
-#ifndef MATMULT_LIB_H
-#define MATMULT_LIB_H
-extern "C" {
-#include <cblas.h>
 void matmult_lib(int m, int n, int k, double **A, double **B, double **C){
 	double alpha, beta;
 	alpha = 1.0; beta = 0.0;
