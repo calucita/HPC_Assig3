@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sunperf.h>
+//#include <sunperf.h>
 #include <math.h>
-
+#include <cuda_runtime.h>
+#include <helper_cuda.h>
+#include <helper_functions.h>
 
 #define min(a,b)(((a)<(b))?(a):(b))
 
