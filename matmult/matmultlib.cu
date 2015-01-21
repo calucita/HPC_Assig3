@@ -28,12 +28,14 @@ void matmult_gpulib(int m, int n, int k, double **A, double **B, double **C){
 	checkCudaErrors(cudaMemcpy(A_d, A[0], (m*k*sizeof(double)), cudaMemcpyHostToDevice));	
 	checkCudaErrors(cudaMemcpy(B_d, B[0], (k*n*sizeof(double)), cudaMemcpyHostToDevice));	
 	
-	
 	cublasDgemm('n', 'n', n, m, k, alpha, B_d, n, A_d, k, beta, C_d, n);
 		
 	checkCudaErrors(cudaMemcpy(C[0],C_d, (m*n*sizeof(double)), cudaMemcpyDeviceToHost));	
-	
+	checkCudaErrors(cudaFree(A_d));
+	checkCudaErrors(cudaFree(B_d));
+	checkCudaErrors(cudaFree(C_d));
 }
+
 void matmult_nat(int m, int n, int k, double **A, double **B, double **C){
 	int i,j,t;
 	for ( i = 0; i < m ; i++){

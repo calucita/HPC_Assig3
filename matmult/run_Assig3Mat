@@ -1,0 +1,47 @@
+#!/bin/bash
+#PBS -q hpcintro
+#PBS -l nodes=1:ppn=2:gpus=1
+#PBS -l walltime=40:00
+#PBS -N log
+#PBS -m bae
+#PBS -M s140882@student.dtu.dk
+LOOPS=10000
+OPTS=("nat" "lib" "gpulib") 
+LOGEXT=dat
+#/bin/rm -f *.$LOGEXT
+count=0
+echo $CPUTYPE
+cd "$PBS_O_WORKDIR"
+
+module load cuda
+ 
+MYGPUS=$(awk -Fgpu '{print $2}' $PBS_GPUFILE | sort -n | tr '\n' ' ' | sed 's/ /,/')
+RESERVEDGPUS=$(cat $PBS_GPUFILE | wc -l)
+ALLGPUS=$(/sbin/lspci  | grep Tesla | wc -l)
+ 
+echo "my cuda device(s):                      " $MYGPUS
+echo "hostname:                               " $(hostname)
+echo "# number of GPUs in the system:         " $ALLGPUS
+echo "# number of GPUs reserved for this job: " $RESERVEDGPUS
+ 
+# we have to respect $MYGPUS here
+# to make bandwidthtest happy: use 'all', if we are using all GPUs:
+if [[ $RESERVEDGPUS -eq $ALLGPUS ]]; then
+    MYGPUS=all
+fi
+ 
+echo /appl/cuda/6.5/samples/bin/x86_64/linux/release/bandwidthTest --device=$MYGPUS
+/appl/cuda/6.5/samples/bin/x86_64/linux/release/bandwidthTest --device=$MYGPUS 
+ 
+for mode in "$argument"
+do
+	n=100
+	while [ $n -lt 7000 ] 
+	do
+			./matmult_c.nvcc $mode $n $n $n     >> "Xsq$mode"."$LOGEXT"
+		n=$(($n+500))
+	done
+done
+
+
+
