@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-//#include <sunperf.h>
 #include <math.h>
 #include <cuda_runtime.h>
 #include <helper_cuda.h>
 #include <helper_functions.h>
+#include <cublas.h>
 
 #define min(a,b)(((a)<(b))?(a):(b))
 
@@ -14,31 +14,25 @@ extern "C" {
 #include <cblas.h>
 void matmult_lib(int m, int n, int k, double **A, double **B, double **C){
 	double alpha, beta;
-//	char transa, transb;
 	alpha = 1.0; beta = 0.0;
-//	transa = 'n', transb='n';
-  
-	cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);
-		
+	cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);		
 }
+
 void matmult_gpulib(int m, int n, int k, double **A, double **B, double **C){
-	double alpha, beta,**A_d, **B_d, **C_d;
-	char transa, transb;
-	int i;
+	double alpha, beta,*A_d, *B_d, *C_d;
 	alpha = 1.0; beta = 0.0;
-	transa = 'n', transb='n';
-	checkCudaErrors(cudaMalloc((void**)&A_d, (m*sizeof(double*))));
-	checkCudaErrors(cudaMalloc((void**)&B_d, (k*sizeof(double*))));
-	checkCudaErrors(cudaMalloc((void**)&C_d, (m*sizeof(double*)))); 
-	for(i = 0; i < m; i++)	{
-		 checkCudaErrors(cudaMalloc((void**)&A_d[i],(k * sizeof(double))));
-	}
-
-
+	cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);		
+	checkCudaErrors(cudaMalloc((void**)&A_d, (m*k*sizeof(double*))));
+	checkCudaErrors(cudaMalloc((void**)&B_d, (k*n*sizeof(double*))));
+	checkCudaErrors(cudaMalloc((void**)&C_d, (m*n*sizeof(double*)))); 
+	checkCudaErrors(cudaMemcpy(A_d, A[0], (m*k*sizeof(double)), cudaMemcpyHostToDevice));	
+	checkCudaErrors(cudaMemcpy(B_d, B[0], (k*n*sizeof(double)), cudaMemcpyHostToDevice));	
 	
 	
-//	dgemm(transa, transb, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);
+	cublasDgemm('n', 'n', n, m, k, alpha, B_d, n, A_d, k, beta, C_d, n);
 		
+	checkCudaErrors(cudaMemcpy(C[0],C_d, (m*n*sizeof(double)), cudaMemcpyDeviceToHost));	
+	
 }
 void matmult_nat(int m, int n, int k, double **A, double **B, double **C){
 	int i,j,t;
