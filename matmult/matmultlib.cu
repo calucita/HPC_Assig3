@@ -10,70 +10,50 @@
 
 
 #define min(a,b)(((a)<(b))?(a):(b))
+#define SIZEXBLOCK 32 
+#define SIZEYBLOCK 32
 
 #ifndef MATMULT_LIB_H
 #define MATMULT_LIB_H
 extern "C" {
 #include <cblas.h>
-/*__global__ void gpu4(int m, int n, int k, double *a, double *b, double *c)
-{
-	double sum=0;
-	const int globalThreadIdx=blockIdx.x*blockDim.x+threadIdx.x;
-	const int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;	
 
-	const int bx=blockDim.x;
-	const int by=blockDim.y;
-	const int tx=threadIdx.x;
-	const int ty=threadIdx.y;
-	const int gx=gridDim.x;
-	const int gy=gridDim.y;
-
-	extern __shared__ double A_s[][];
-
-	if (globalThreadIdx < m && globalThreadIdy < n) {
-		for(int j=0;j<gy;j++){
-			A_s[tx][ty]=a[globalThreadIdx*m+j*by+ty];
-			__syncthreads();
-			for (int i =0; i< bx; i++)
-				sum+=A_s[i][tx]*b[globalThreadIdy+(i+j)*n];
-				//sum+=a[globalThreadIdx*m+j]*b[globalThreadIdy+j*n];
-			__syncthreads();
-		}
-		c[globalThreadIdy+globalThreadIdx*m]=sum;	
-	}
-}*/
-
-__global__ void gpu4(int m, int n, int k, double *a, double *b, double *c, int sizeXBlock)
-{
+__global__ void gpu4(int m, int n, int k, double *a, double *b, double *c){
 	double sum=0;
 	int globalThreadIdx=blockIdx.x*blockDim.x+threadIdx.x;
 	int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;
-
+	int i,j;
+	__shared__ double A_s[SIZEXBLOCK][SIZEXBLOCK];
 	if (globalThreadIdx < m && globalThreadIdy < n) {
-		for(int j=0;j<k;j+=sizeXBlock){
-			extern __shared__ double A_s[];
-			A_s[threadIdx.x]=a[globalThreadIdx];
+		for(j=0;j<k; j+=SIZEXBLOCK){
+			A_s[threadIdx.y][threadIdx.x]=a[globalThreadIdy+(j+threadIdx.x)*k];
 			__syncthreads();
-			for (int i =0; i< sizeXBlock; i++)
-				if(j*sizeXBlock+i<k){
-					//sum+=A_s[i+j]*b[globalThreadIdy+(i+j)*n];
-					sum+=a[globalThreadIdx*m+i+j]*b[globalThreadIdy+(i+j)*n];
-					//sum+=a[globalThreadIdx*m+j]*b[globalThreadIdy+j*n];
+			for (i =0; i< SIZEXBLOCK; i++){
+				if (j+i<k){
+				//	if(m%SIZEXBLOCK==0 || n/SIZEXBLOCK == 0 || j<k-SIZEXBLOCK){
+						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
+//					} else if( j<k-SIZEXBLOCK ){
+//						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
+				//	}else if ((threadIdx.y < n%SIZEXBLOCK && j>k-SIZEXBLOCK)){
+				//		sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
+					//	printf("I actually do something \n");
+		//				sum+=a[globalThreadIdx*k+j+i]*b[globalThreadIdy+(i+j)*n];
+					//}//else {printf("oh, hai, I'm skipping around! \n");}
 				}
+			}
 			__syncthreads();
 		}
-		c[globalThreadIdy+globalThreadIdx*m]=sum;	
+		c[globalThreadIdy+globalThreadIdx*n]=sum;	
 	}
 }
 
 
-void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C)
-{
-	int sizeXBlock = 32;
+void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C){
+	int sizeXBlock = SIZEXBLOCK;
 	int sizeXGrid = (m+sizeXBlock-1)/sizeXBlock;
-	int sizeYBlock = 32;
+	int sizeYBlock = SIZEYBLOCK;
 	int sizeYGrid =  (n+sizeYBlock-1)/sizeYBlock;
-
+//	printf ("Size grid X %d, size Grid Y %d \n", sizeXGrid, sizeYGrid);
 	double *a_d;
 	double *b_d;
 	double *c_d;
@@ -88,7 +68,7 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C)
 	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));
 
 	//gpu4<<< DimGrid, DimBlock, sizeXBlock*sizeYBlock*sizeof(double) >>>(m,n,k,a_d,b_d,c_d);
-	gpu4<<< DimGrid, DimBlock, sizeXBlock*sizeof(double) >>>(m,n,k,a_d,b_d,c_d,sizeXBlock);
+	gpu4<<< DimGrid, DimBlock>>>(m,n,k,a_d,b_d,c_d);
 	checkCudaErrors(cudaDeviceSynchronize());
 	checkCudaErrors(cudaGetLastError());
 	checkCudaErrors(cudaMemcpy(C[0],c_d, m*n*sizeof(double),cudaMemcpyDeviceToHost));
@@ -96,6 +76,7 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C)
 	cudaFree(a_d);
 	cudaFree(b_d);
 	cudaFree(c_d);
+	checkCudaErrors(cudaGetLastError());
 }
 
 __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
@@ -113,7 +94,6 @@ __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 				sum1+=a[i*k+j]*b[Idy+j*n];
 				sum2+=a[i*k+j]*b[ndy+j*n];
 			}
-			if(i==2*m){printf("hello! bastard...\n");}
 			c[Idy+i*n]=sum1;
 			c[ndy+i*n]=sum2;		
 		}
