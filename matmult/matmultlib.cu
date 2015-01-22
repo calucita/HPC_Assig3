@@ -28,7 +28,7 @@ __global__ void gpu5(int m, int n, int k, double *a, double *b, double *c){
 	if (globalThreadIdx < m && globalThreadIdy < n) {
 		for(j=0;j<k; j+=SIZEXBLOCK){
 			A_s[threadIdx.y][threadIdx.x]=a[globalThreadIdy+(j+threadIdx.x)*k];
-			B_s[threadIdx.x][threadIdx.y]=a[globalThreadIdx*n+(j+threadIdx.y)];
+			B_s[threadIdx.x][threadIdx.y]=b[globalThreadIdx*n+j+threadIdx.y];
 			__syncthreads();
 			for (i =0; i< SIZEXBLOCK; i++){
 				if (j+i<k){
