@@ -6,8 +6,8 @@
 #include <helper_functions.h> 
 #include <sys/time.h>
 
-#define MAX_ITER 1
-#define NODES 10 // boundaries included
+#define MAX_ITER 1000
+#define NODES 32 // boundaries included
 
 
 __global__ void kernel_jacobi0(double *u, double *u_old, double *u_d1, double *f, int N){
@@ -22,21 +22,21 @@ __global__ void kernel_jacobi0(double *u, double *u_old, double *u_d1, double *f
 	i = blockIdx.x * blockDim.x + threadIdx.x+1; //column
 
 	// computing solution
-	if (j == 1 && i < N-1){ printf("boundary %5.0lf in thread %i, %i \n", u[i+(j-1)*N], j-1, i);}	
-	if (j < N/2-1 && i < N-1){ printf("dev 0 %5.0lf in thread %i, %i \n", u[i+j*N], j, i);}
-	if (j == N/2-1 && i < N-1){ printf(" last row %5.0lf in thread %i, %i \n", u[i+j*N], j, i);}
-	
-	/*if (j < N/2-1 && i < N-1){
+	/*if (j <= N/2 && i <= N){ 
+		printf("dev 0 %5.0lf in thread %i, %i \n", u[i+j*N], j, i);
 		
+	}*/
+	
+	if (j < N/2-1 && i < N-1){		
 		u[i+j*N] = 0.25 * ( u_old[(i-1)+j*N] + u_old[(i+1)+j*N] + \
 				    u_old[i+(j-1)*N] + u_old[i+(j+1)*N] + \
-			            h*h*f[i+j*N] );	
+			            h*h*f[i+j*N] );
+	
 	}else if (j == N/2-1 && i < N-1){
-		
 		u[i+j*N] = 0.25 * ( u_old[(i-1)+j*N] + u_old[(i+1)+j*N] + \
 				    u_old[i+(j-1)*N] + u_d1[i] + \
 			            h*h*f[i+j*N] );	
-	}*/
+	}
 	
 }
 
@@ -52,13 +52,13 @@ __global__ void kernel_jacobi1(double *u, double *u_old, double *u_d0, double *f
 	i = blockIdx.x * blockDim.x + threadIdx.x+1; //column
 
 	// computing solution
-	if (j > 0 && j < N/2-1 && i < N-1){ printf("dev 1 %5.0lf in thread %i, %i \n", u[i+j*N], j, i);}
-	if (j == 0 && i < N-1){ printf(" first row row %5.0lf in thread %i, %i \n", u[i+j*N], j, i);}
-	if (j == N/2 && i < N-1){ printf(" boundary %5.0lf in thread %i, %i \n", u[i+j*N], j, i);}
+	/*if (j <= N/2 && i <= N){ 
+		printf("dev 1 %5.0lf in thread %i, %i\n", u[i+j*N], j, i);
+	}*/
 	
 	//printf("%lf \n", u[i+j*N]);
 
-	/*if (j > 0 && j < N/2-1 && i < N-1){
+	if (j > 0 && j < N/2-1 && i < N-1){
 		
 		u[i+j*N] = 0.25 * ( u_old[(i-1)+j*N] + u_old[(i+1)+j*N] + \
 				    u_old[i+(j-1)*N] + u_old[i+(j+1)*N] + \
@@ -67,8 +67,9 @@ __global__ void kernel_jacobi1(double *u, double *u_old, double *u_d0, double *f
 		
 		u[i+j*N] = 0.25 * ( u_old[(i-1)+j*N] + u_old[(i+1)+j*N]  + \
 				    u_d0[i+(N/2-1)*N] + u_old[i+(j+1)*N] + \
-			            h*h*f[i+j*N] );	
-	}*/
+			            h*h*f[i+j*N] );
+		//printf("%5.0lf \n", u_d0[i+(N/2-1)*N]);	
+	}
 	
 }
 
@@ -131,11 +132,7 @@ int main(int argc, char *argv[])
 				u_h[i+j*N] = 20;
 				u_old_h[i+j*N] = 20;
 			}
-			if(i == 1 && j==5) {u_h[i+j*N] = 365;}
-			if(i == 8 && j==8) {u_h[i+j*N] = 234;}
-			printf("%5.0lf ",u_h[i+j*N]);
 		} 
-		printf("\n");
 	}
 	
 	// set device 0 as current and allocating solution and forcing term
@@ -159,7 +156,7 @@ int main(int argc, char *argv[])
 	cudaMalloc((void**)&u_old_d1,(N*N/2) * sizeof(double));
 
 	// copying from host to device 1
-	cudaMemcpy(u_d1, u_h+N*N/2, (N*N/2)*sizeof(double),cudaMemcpyHostToDevice);
+	cudaMemcpy(u_d1, u_h+(N*N/2), (N*N/2)*sizeof(double),cudaMemcpyHostToDevice);
 	cudaMemcpy(u_old_d1, u_old_h+(N*N/2), (N*N/2)*sizeof(double),cudaMemcpyHostToDevice);
 	cudaMemcpy(f_d1, f_h+N*N/2, (N*N/2)*sizeof(double),cudaMemcpyHostToDevice);
 
@@ -171,15 +168,15 @@ int main(int argc, char *argv[])
 	k = 0;
 	while (k < max_iter){
 		cudaSetDevice(0);
-		//temp = u_d0;
-		//u_d0 = u_old_d0;
-		//u_old_d0 = temp;
+		temp = u_d0;
+		u_d0 = u_old_d0;
+		u_old_d0 = temp;
 		kernel_jacobi0<<< DimGrid, DimBlock >>>(u_d0, u_old_d0, u_d1, f_d0, N);
 
 		cudaSetDevice(1);
-		//temp = u_d1;
-		//u_d1 = u_old_d1;
-		//u_old_d1 = temp;
+		temp = u_d1;
+		u_d1 = u_old_d1;
+		u_old_d1 = temp;
 		kernel_jacobi1<<< DimGrid, DimBlock >>>(u_d1, u_old_d1, u_d0, f_d1, N);
 		// synchronize devices
 		cudaSetDevice(0);
@@ -202,17 +199,18 @@ int main(int argc, char *argv[])
 	cudaMemcpy(u_h,u_d0, N*N/2 *sizeof(double),cudaMemcpyDeviceToHost);
 
 	// copying from device 1 to host
-	cudaSetDevice(0);
-	cudaMemcpy(u_h+N*N/2,u_d0, N*N/2 *sizeof(double),cudaMemcpyDeviceToHost);
+	cudaSetDevice(1);
+	cudaMemcpy(u_h+N*N/2,u_d1, N*N/2 *sizeof(double),cudaMemcpyDeviceToHost);
 
 	// print solution
+
 	FILE * fp;
 
    	fp = fopen ("solution_par.txt", "w+");
 
 	for(j=0; j<N; j++){
 		for(i=0; i< N; i++){
-			fprintf(fp, "%5.0lf ",u_h[i+j*N]);
+			fprintf(fp, "%lf ",u_h[i+j*N]);
 		}
 		fprintf(fp, "\n");
 	}
