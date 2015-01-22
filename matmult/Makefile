@@ -4,7 +4,7 @@ LIBOBJS	= matmultlib.o
 
 OPT	= -g -arch=sm_20
 PIC	= -Xcompiler -fpic
-XOPTS = -Xptxas=-v
+XOPTS = -Xptxas -v
 
 CXX	= nvcc
 CXXFLAGS = $(OPT) $(PIC) $(XOPTS)
