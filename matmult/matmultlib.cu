@@ -18,6 +18,69 @@
 extern "C" {
 #include <cblas.h>
 
+__global__ void gpu5(int m, int n, int k, double *a, double *b, double *c){
+	double sum=0;
+	int globalThreadIdx=blockIdx.x*blockDim.x+threadIdx.x;
+	int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;
+	int i,j;
+	__shared__ double A_s[SIZEXBLOCK][SIZEXBLOCK];
+	__shared__ double B_s[SIZEXBLOCK][SIZEXBLOCK];
+	if (globalThreadIdx < m && globalThreadIdy < n) {
+		for(j=0;j<k; j+=SIZEXBLOCK){
+			A_s[threadIdx.y][threadIdx.x]=a[globalThreadIdy+(j+threadIdx.x)*k];
+			B_s[threadIdx.x][threadIdx.y]=a[globalThreadIdx*n+(j+threadIdx.y)];
+			__syncthreads();
+			for (i =0; i< SIZEXBLOCK; i++){
+				if (j+i<k){
+				//	if(m%SIZEXBLOCK==0 || n/SIZEXBLOCK == 0 || j<k-SIZEXBLOCK){
+						sum+=A_s[threadIdx.y][i]*B_s[threadIdx.x][i];
+//					} else if( j<k-SIZEXBLOCK ){
+//						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
+				//	}else if ((threadIdx.y < n%SIZEXBLOCK && j>k-SIZEXBLOCK)){
+				//		sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
+					//	printf("I actually do something \n");
+		//				sum+=a[globalThreadIdx*k+j+i]*b[globalThreadIdy+(i+j)*n];
+					//}//else {printf("oh, hai, I'm skipping around! \n");}
+				}
+			}
+			__syncthreads();
+		}
+		c[globalThreadIdy+globalThreadIdx*n]=sum;	
+	}
+}
+
+
+void matmult_gpu5(int m, int n, int k, double **A, double **B, double **C){
+	int sizeXBlock = SIZEXBLOCK;
+	int sizeXGrid = (m+sizeXBlock-1)/sizeXBlock;
+	int sizeYBlock = SIZEYBLOCK;
+	int sizeYGrid =  (n+sizeYBlock-1)/sizeYBlock;
+//	printf ("Size grid X %d, size Grid Y %d \n", sizeXGrid, sizeYGrid);
+	double *a_d;
+	double *b_d;
+	double *c_d;
+
+	dim3 DimGrid(sizeXGrid,sizeYGrid);
+	dim3 DimBlock(sizeXBlock, sizeYBlock);
+
+	checkCudaErrors(cudaMalloc((void**)&a_d,m*k*sizeof(double)));
+	checkCudaErrors(cudaMalloc((void**)&b_d,k*n*sizeof(double)));
+	checkCudaErrors(cudaMalloc((void**)&c_d,m*n*sizeof(double)));
+	checkCudaErrors(cudaMemcpy(a_d,A[0], m*k*sizeof(double),cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));
+
+	//gpu4<<< DimGrid, DimBlock, sizeXBlock*sizeYBlock*sizeof(double) >>>(m,n,k,a_d,b_d,c_d);
+	gpu5<<< DimGrid, DimBlock>>>(m,n,k,a_d,b_d,c_d);
+	checkCudaErrors(cudaDeviceSynchronize());
+	checkCudaErrors(cudaGetLastError());
+	checkCudaErrors(cudaMemcpy(C[0],c_d, m*n*sizeof(double),cudaMemcpyDeviceToHost));
+
+	cudaFree(a_d);
+	cudaFree(b_d);
+	cudaFree(c_d);
+	checkCudaErrors(cudaGetLastError());
+}
+
 __global__ void gpu4(int m, int n, int k, double *a, double *b, double *c){
 	double sum=0;
 	int globalThreadIdx=blockIdx.x*blockDim.x+threadIdx.x;
