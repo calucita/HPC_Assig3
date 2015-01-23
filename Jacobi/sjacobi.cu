@@ -46,11 +46,11 @@ int main(int argc, char *argv[])
 	if (argc == 2)
 	{	
 		N = atoi(argv[1]);
-		if (N <= 24){ 
+		if (N <= 18){ 
 			sizeXBlock = N-2; 
 			sizeXGrid = 1;
 		} else {	
-			sizeXBlock = 22; // each block can be at most 22x22=484 (max is 512!!)
+			sizeXBlock = 16; // each block can be at most (max is 512!!)
 			sizeXGrid = ((N-2)+sizeXBlock-1)/sizeXBlock;
 		}
 	}
