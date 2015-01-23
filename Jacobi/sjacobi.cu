@@ -6,8 +6,8 @@
 #include <helper_functions.h> 
 #include <sys/time.h>
 
-#define MAX_ITER 1000
-#define NODES 10 // boundaries included
+#define MAX_ITER 10000
+#define NODES 1000 // boundaries included
 
 
 
@@ -36,6 +36,9 @@ __global__ void kernel_jacobi(double *u, double *u_old, double *f, int N){
 int main(int argc, char *argv[])
 {
 
+	struct timeval t1, t2;
+	gettimeofday(&t1, NULL);	
+
 	int N = NODES;
 	int sizeXGrid = 1;
 	int sizeXBlock = N-2; 
@@ -44,10 +47,10 @@ int main(int argc, char *argv[])
 	{	
 		N = atoi(argv[1]);
 		if (N <= 24){ 
-			sizeXBlock = N-2;
+			sizeXBlock = N-2; 
 			sizeXGrid = 1;
 		} else {	
-			sizeXBlock = 22; 
+			sizeXBlock = 22; // each block can be at most 22x22=484 (max is 512!!)
 			sizeXGrid = ((N-2)+sizeXBlock-1)/sizeXBlock;
 		}
 	}
@@ -58,6 +61,7 @@ int main(int argc, char *argv[])
 	double *u_d, *u_old_d, *f_d;
 	double conv, *temp;
 
+
 	dim3 DimGrid(sizeXGrid,sizeXGrid);
 	dim3 DimBlock(sizeXBlock,sizeXBlock); // 484 threads per block 
 
@@ -66,6 +70,15 @@ int main(int argc, char *argv[])
 	// initializing stopwatches
 	StopWatchInterface *timeKer;
 	sdkCreateTimer(&timeKer);
+
+	StopWatchInterface *timeMem1; //time to allocate to host
+	sdkCreateTimer(&timeMem1);
+
+	StopWatchInterface *timeMem2; //time to copy to device
+	sdkCreateTimer(&timeMem1);
+
+	StopWatchInterface *timeMem3; //time to copy to host
+	sdkCreateTimer(&timeMem1);
 
 	// allocating solution and forcing term in the host 
 	f_h     = (double *)malloc(N*N * sizeof(double));
@@ -93,34 +106,42 @@ int main(int argc, char *argv[])
 		} 
 	}
 	
+	sdkStartTimer(&timeMem1);
 	// allocating solution and forcing term in the device
 	cudaMalloc((void**)&f_d,N*N * sizeof(double));
 	cudaMalloc((void**)&u_d,N*N * sizeof(double));
 	cudaMalloc((void**)&u_old_d,N*N * sizeof(double));
+	sdkStopTimer(&timeMem1);
 
+	sdkStartTimer(&timeMem2);
 	// copying from host to device
 	cudaMemcpy(u_d,u_h, N*N*sizeof(double),cudaMemcpyHostToDevice);
 	cudaMemcpy(u_old_d,u_old_h, N*N*sizeof(double),cudaMemcpyHostToDevice);
 	cudaMemcpy(f_d,f_h, N*N*sizeof(double),cudaMemcpyHostToDevice);
+	sdkStopTimer(&timeMem2);
 
-	// calling kernel and taking time	
-	sdkStartTimer(&timeKer);
+	// calling kernel and taking time
 	k = 1;
+	sdkStartTimer(&timeKer);
 	while (k < max_iter){
 		temp = u_d;
 		u_d = u_old_d;
 		u_old_d = temp;
 		kernel_jacobi<<< DimGrid, DimBlock >>>(u_d, u_old_d, f_d, N);
-		cudaDeviceSynchronize();
+		cudaDeviceSynchronize();		
 		k++;
 	}
 	sdkStopTimer(&timeKer);
+	
 
 	// copying from device to host
+	sdkStartTimer(&timeMem3);
 	cudaMemcpy(u_h,u_d, N*N *sizeof(double),cudaMemcpyDeviceToHost);
+	sdkStopTimer(&timeMem3);
 
 	// print solution
-	FILE * fp;
+
+	/*FILE * fp;
 
    	fp = fopen ("solution2.txt", "w+");
 
@@ -131,13 +152,7 @@ int main(int argc, char *argv[])
 		fprintf(fp, "\n");
 	}
    
-   	fclose(fp);	
-
-	// print time
-	double tK = sdkGetTimerValue(&timeKer);
-	printf("Kernel time: %f \n", tK/1e3);
-	printf("Block size: %i x %i \n", sizeXBlock,sizeXBlock);
-	printf("Grid size: %i x %i \n", sizeXGrid, sizeXGrid);
+   	fclose(fp);*/
 
 	// freeing memory	
 	free(u_old_h);
@@ -145,7 +160,32 @@ int main(int argc, char *argv[])
 	free(f_h);
 	cudaFree(u_old_d);
 	cudaFree(u_d);
-	cudaFree(f_d);
+	cudaFree(f_d);	
+
+	// print time
+	double tK = sdkGetTimerValue(&timeKer);
+	double tM1 = sdkGetTimerValue(&timeMem1);
+	double tM2 = sdkGetTimerValue(&timeMem2);
+	double tM3 = sdkGetTimerValue(&timeMem3);
+
+	printf("Kernel time: %lf \n", tK/1e3);
+	printf("Memory time: %lf \n", (tM1 + tM2 + tM3)/1e3);
+
+	//printf("Block size: %i x %i \n", sizeXBlock,sizeXBlock);
+	//printf("Grid size: %i x %i \n", sizeXGrid, sizeXGrid);
+
+	double gputime = (tK + tM1 + tM2 + tM3)/1e3;
+
+	gettimeofday(&t2, NULL);
+	double  walltime = t2.tv_sec - t1.tv_sec + (t2.tv_usec -t1.tv_usec) / 1.e6;
+	double cputime = walltime - gputime;
+	printf("Wall time: %lf \n", walltime);
+	printf("CPU time: %lf \n", cputime);
+
+	double kerneltime = tK/max_iter;
+	double flops = ((N*N*5)/1e9)/(kerneltime/1e3);
+	printf("Performance [GFlop/s]: %lf \n", flops);
+	
 	
 	return 0;
 
