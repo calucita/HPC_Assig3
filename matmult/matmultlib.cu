@@ -149,7 +149,7 @@ __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 	int j,mlim=m/4,nlim=n/4;
 	int Idx=blockIdx.x*blockDim.x+threadIdx.x;
 	int Idy=blockIdx.y*blockDim.y+threadIdx.y;
-        if (Idx < mlim && Idy < nlim) {
+        if (Idx < m && Idy < nlim) {
 		int id0 =Idx*n+Idy+0*nlim;
 		int id1 =Idx*n+Idy+1*nlim;
 		int id2 =Idx*n+Idy+2*nlim;
