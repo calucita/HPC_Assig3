@@ -32,15 +32,7 @@ __global__ void gpu5(int m, int n, int k, double *a, double *b, double *c){
 			__syncthreads();
 			for (i =0; i< SIZEXBLOCK; i++){
 				if (j+i<k){
-				//	if(m%SIZEXBLOCK==0 || n/SIZEXBLOCK == 0 || j<k-SIZEXBLOCK){
-						sum+=A_s[threadIdx.x][i]*B_s[threadIdx.y][i];
-//					} else if( j<k-SIZEXBLOCK ){
-//						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
-				//	}else if ((threadIdx.y < n%SIZEXBLOCK && j>k-SIZEXBLOCK)){
-				//		sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
-					//	printf("I actually do something \n");
-		//				sum+=a[globalThreadIdx*k+j+i]*b[globalThreadIdy+(i+j)*n];
-					//}//else {printf("oh, hai, I'm skipping around! \n");}
+					sum+=A_s[threadIdx.x][i]*B_s[threadIdx.y][i];
 				}
 			}
 			__syncthreads();
