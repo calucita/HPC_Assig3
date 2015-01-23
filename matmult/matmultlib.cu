@@ -132,21 +132,21 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C){
 
 __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 {
-	int j,nlim=n/4;
+	int j,nlim=m/4;
 	int Idx=blockIdx.x*blockDim.x+threadIdx.x;
 	int Idy=blockIdx.y*blockDim.y+threadIdx.y;
 	double sum0=0, sum1=0, sum2=0, sum3=0;
-        if (Idx < n && Idy < nlim) {
+        if (Idx < nlim && Idy < n) {
 		for(j=0;j<k;j++){
 			sum0+=a[Idy*k+j]*b[Idx+j*n];
 			sum1+=a[Idy*k+j]*b[Idx+nlim+j*n];
 			sum2+=a[Idy*k+j]*b[Idx+2*nlim+j*n];
 			sum3+=a[Idy*k+j]*b[Idx+3*nlim+j*n];
 		}
-		c[(Idx*n)+(Idy)]=sum0;
-		c[(Idx*n)+(Idy+nlim)]=sum1;
-		c[(Idx*n)+(Idy+2*nlim)]=sum2;
-		c[(Idx*n)+(Idy+3*nlim)]=sum3;
+		c[(Idy*n)+(Idx)]=sum0;
+		c[(Idy*n)+(Idx+nlim)]=sum1;
+		c[(Idy*n)+(Idx+2*nlim)]=sum2;
+		c[(Idy*n)+(Idx+3*nlim)]=sum3;
 	}
 }
 
@@ -186,13 +186,13 @@ __global__ void gpu2(int m, int n, int k, double *a, double *b, double *c)
 	double sum2=0;
 	int globalThreadIdx=blockIdx.x*blockDim.x+threadIdx.x;
 	int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;	
-	if (globalThreadIdx < m && globalThreadIdy < n/2) {
+	if (globalThreadIdx < m/2 && globalThreadIdy < n) {
 		for(j=0;j<k;j++){
 			sum1+=a[globalThreadIdy*k+j]*b[globalThreadIdx+j*n];
 			sum2+=a[globalThreadIdy*k+j]*b[(globalThreadIdx+n/2)+j*n];
 		}
-		c[globalThreadIdy+globalThreadIdx*n]=sum1;
-		c[globalThreadIdy+n/2+globalThreadIdx*n]=sum2;		
+		c[globalThreadIdx+globalThreadIdy*n]=sum1;
+		c[globalThreadIdx+n/2+globalThreadIdy*n]=sum2;		
 	}
 }
 
