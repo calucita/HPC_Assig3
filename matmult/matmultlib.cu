@@ -144,21 +144,26 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C){
 
 __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 {
-	// since using 4 sums would make us run out of registers, we use
-	//  a simple second loop to make the other two calculations.
-	int j,i, mlim=m/2,nlim=n/2;
+		printf("hello, i'm alive .. and broken \n");
+
+	int j,mlim=m/4,nlim=n/4;
 	int Idx=blockIdx.x*blockDim.x+threadIdx.x;
 	int Idy=blockIdx.y*blockDim.y+threadIdx.y;
-	int ndy=Idy+nlim;	
-	if (Idx < mlim && Idy < nlim) {
-		for (i=Idx;i<m; i+=mlim){
-			double sum1=0,sum2=0;
-			for(j=0;j<k;j++){
-				sum1+=a[i*k+j]*b[Idy+j*n];
-				sum2+=a[i*k+j]*b[ndy+j*n];
-			}
-			c[Idy+i*n]=sum1;
-			c[ndy+i*n]=sum2;		
+        if (Idx < mlim && Idy < nlim) {
+		int id0 =Idx*n+Idy+0*nlim;
+		int id1 =Idx*n+Idy+1*nlim;
+		int id2 =Idx*n+Idy+2*nlim;
+		int id3 =Idx*n+Idy+3*nlim;
+		c[id0]=0;
+		c[id1]=0;
+		c[id2]=0;
+		c[id3]=0;	
+		for(j=0;j<k;j++){
+			c[id0]+=a[id0*k+j]*b[Idy+j*n];
+			c[id1]+=a[id1*k+j]*b[Idy+nlim+j*n];
+			c[id2]+=a[id2*k+j]*b[Idy+2*nlim+j*n];
+			c[id3]+=a[id3*k+j]*b[Idy+3*nlim+j*n];
+
 		}
 	}
 }
@@ -182,11 +187,12 @@ void matmult_gpu3(int m, int n, int k, double **A, double **B, double **C)
 	checkCudaErrors(cudaMalloc((void**)&b_d,k*n*sizeof(double)));
 	checkCudaErrors(cudaMalloc((void**)&c_d,m*n*sizeof(double)));
 	checkCudaErrors(cudaMemcpy(a_d,A[0], m*k*sizeof(double),cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));
-
+	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));	
+	checkCudaErrors(cudaGetLastError());
+	printf ("size block x = %d, block y %d, gridx %d, gridy %d \n", sizeXBlock, sizeYBlock, sizeXGrid, sizeYGrid);
 	gpu3<<< DimGrid, DimBlock >>>(m,n,k,a_d,b_d,c_d);
 	checkCudaErrors(cudaDeviceSynchronize());
-	checkCudaErrors(cudaGetLastError());
+	//checkCudaErrors(cudaGetLastError());
 	checkCudaErrors(cudaMemcpy(C[0],c_d, m*n*sizeof(double),cudaMemcpyDeviceToHost));
 
 	cudaFree(a_d);
