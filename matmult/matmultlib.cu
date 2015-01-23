@@ -138,10 +138,10 @@ __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 	double sum0=0, sum1=0, sum2=0, sum3=0;
         if (Idx < n && Idy < nlim) {
 		for(j=0;j<k;j++){
-			sum0+=a[Idx*k+j]*b[Idy+j*n];
-			sum1+=a[Idx*k+j]*b[Idy+nlim+j*n];
-			sum2+=a[Idx*k+j]*b[Idy+2*nlim+j*n];
-			sum3+=a[Idx*k+j]*b[Idy+3*nlim+j*n];
+			sum0+=a[Idy*k+j]*b[Idx+j*n];
+			sum1+=a[Idy*k+j]*b[Idx+nlim+j*n];
+			sum2+=a[Idy*k+j]*b[Idx+2*nlim+j*n];
+			sum3+=a[Idy*k+j]*b[Idx+3*nlim+j*n];
 		}
 		c[(Idx*n)+(Idy)]=sum0;
 		c[(Idx*n)+(Idy+nlim)]=sum1;
@@ -188,8 +188,8 @@ __global__ void gpu2(int m, int n, int k, double *a, double *b, double *c)
 	int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;	
 	if (globalThreadIdx < m && globalThreadIdy < n/2) {
 		for(j=0;j<k;j++){
-			sum1+=a[globalThreadIdx*k+j]*b[globalThreadIdy+j*n];
-			sum2+=a[globalThreadIdx*k+j]*b[(globalThreadIdy+n/2)+j*n];
+			sum1+=a[globalThreadIdy*k+j]*b[globalThreadIdx+j*n];
+			sum2+=a[globalThreadIdy*k+j]*b[(globalThreadIdx+n/2)+j*n];
 		}
 		c[globalThreadIdy+globalThreadIdx*n]=sum1;
 		c[globalThreadIdy+n/2+globalThreadIdx*n]=sum2;		
@@ -239,9 +239,9 @@ __global__ void gpu1(int m, int n, int k, double *a, double *b, double *c)
 	int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;	
 	if (globalThreadIdx < m && globalThreadIdy < n) {
 		for(j=0;j<k;j++){
-			sum+=a[globalThreadIdx*k+j]*b[globalThreadIdy+j*n];
+			sum+=a[globalThreadIdy*k+j]*b[globalThreadIdx+j*n];
 		}
-		c[globalThreadIdy+globalThreadIdx*n]=sum;	
+		c[globalThreadIdx+globalThreadIdy*n]=sum;	
 	}
 }
 
