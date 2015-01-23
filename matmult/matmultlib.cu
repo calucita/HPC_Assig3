@@ -27,25 +27,17 @@ __global__ void gpu5(int m, int n, int k, double *a, double *b, double *c){
 	__shared__ double B_s[SIZEXBLOCK][SIZEXBLOCK];
 	if (globalThreadIdx < m && globalThreadIdy < n) {
 		for(j=0;j<k; j+=SIZEXBLOCK){
-			A_s[threadIdx.y][threadIdx.x]=a[globalThreadIdy+(j+threadIdx.x)*k];
-			B_s[threadIdx.x][threadIdx.y]=b[globalThreadIdx*n+j+threadIdx.y];
+			A_s[threadIdx.x][threadIdx.y]=a[globalThreadIdx+(j+threadIdx.y)*k];
+			B_s[threadIdx.y][threadIdx.x]=b[globalThreadIdy*n+j+threadIdx.x];
 			__syncthreads();
 			for (i =0; i< SIZEXBLOCK; i++){
 				if (j+i<k){
-				//	if(m%SIZEXBLOCK==0 || n/SIZEXBLOCK == 0 || j<k-SIZEXBLOCK){
-						sum+=A_s[threadIdx.y][i]*B_s[threadIdx.x][i];
-//					} else if( j<k-SIZEXBLOCK ){
-//						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
-				//	}else if ((threadIdx.y < n%SIZEXBLOCK && j>k-SIZEXBLOCK)){
-				//		sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
-					//	printf("I actually do something \n");
-		//				sum+=a[globalThreadIdx*k+j+i]*b[globalThreadIdy+(i+j)*n];
-					//}//else {printf("oh, hai, I'm skipping around! \n");}
+					sum+=A_s[threadIdx.x][i]*B_s[threadIdx.y][i];
 				}
 			}
 			__syncthreads();
 		}
-		c[globalThreadIdy+globalThreadIdx*n]=sum;	
+		c[globalThreadIdx+globalThreadIdy*n]=sum;	
 	}
 }
 
@@ -55,7 +47,6 @@ void matmult_gpu5(int m, int n, int k, double **A, double **B, double **C){
 	int sizeXGrid = (m+sizeXBlock-1)/sizeXBlock;
 	int sizeYBlock = SIZEYBLOCK;
 	int sizeYGrid =  (n+sizeYBlock-1)/sizeYBlock;
-//	printf ("Size grid X %d, size Grid Y %d \n", sizeXGrid, sizeYGrid);
 	double *a_d;
 	double *b_d;
 	double *c_d;
@@ -69,7 +60,6 @@ void matmult_gpu5(int m, int n, int k, double **A, double **B, double **C){
 	checkCudaErrors(cudaMemcpy(a_d,A[0], m*k*sizeof(double),cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));
 
-	//gpu4<<< DimGrid, DimBlock, sizeXBlock*sizeYBlock*sizeof(double) >>>(m,n,k,a_d,b_d,c_d);
 	gpu5<<< DimGrid, DimBlock>>>(m,n,k,a_d,b_d,c_d);
 	checkCudaErrors(cudaDeviceSynchronize());
 	checkCudaErrors(cudaGetLastError());
@@ -93,15 +83,7 @@ __global__ void gpu4(int m, int n, int k, double *a, double *b, double *c){
 			__syncthreads();
 			for (i =0; i< SIZEXBLOCK; i++){
 				if (j+i<k){
-				//	if(m%SIZEXBLOCK==0 || n/SIZEXBLOCK == 0 || j<k-SIZEXBLOCK){
-						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
-//					} else if( j<k-SIZEXBLOCK ){
-//						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
-				//	}else if ((threadIdx.y < n%SIZEXBLOCK && j>k-SIZEXBLOCK)){
-				//		sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
-					//	printf("I actually do something \n");
-		//				sum+=a[globalThreadIdx*k+j+i]*b[globalThreadIdy+(i+j)*n];
-					//}//else {printf("oh, hai, I'm skipping around! \n");}
+					sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
 				}
 			}
 			__syncthreads();
@@ -116,7 +98,6 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C){
 	int sizeXGrid = (m+sizeXBlock-1)/sizeXBlock;
 	int sizeYBlock = SIZEYBLOCK;
 	int sizeYGrid =  (n+sizeYBlock-1)/sizeYBlock;
-//	printf ("Size grid X %d, size Grid Y %d \n", sizeXGrid, sizeYGrid);
 	double *a_d;
 	double *b_d;
 	double *c_d;
@@ -130,7 +111,6 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C){
 	checkCudaErrors(cudaMemcpy(a_d,A[0], m*k*sizeof(double),cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));
 
-	//gpu4<<< DimGrid, DimBlock, sizeXBlock*sizeYBlock*sizeof(double) >>>(m,n,k,a_d,b_d,c_d);
 	gpu4<<< DimGrid, DimBlock>>>(m,n,k,a_d,b_d,c_d);
 	checkCudaErrors(cudaDeviceSynchronize());
 	checkCudaErrors(cudaGetLastError());
@@ -144,32 +124,30 @@ void matmult_gpu4(int m, int n, int k, double **A, double **B, double **C){
 
 __global__ void gpu3(int m, int n, int k, double *a, double *b, double *c)
 {
-	// since using 4 sums would make us run out of registers, we use
-	//  a simple second loop to make the other two calculations.
-	int j,i, mlim=m/2,nlim=n/2;
+	int j,nlim=m/4;
 	int Idx=blockIdx.x*blockDim.x+threadIdx.x;
 	int Idy=blockIdx.y*blockDim.y+threadIdx.y;
-	int ndy=Idy+nlim;	
-	if (Idx < mlim && Idy < nlim) {
-		for (i=Idx;i<m; i+=mlim){
-			double sum1=0,sum2=0;
-			for(j=0;j<k;j++){
-				sum1+=a[i*k+j]*b[Idy+j*n];
-				sum2+=a[i*k+j]*b[ndy+j*n];
-			}
-			c[Idy+i*n]=sum1;
-			c[ndy+i*n]=sum2;		
+	double sum0=0, sum1=0, sum2=0, sum3=0;
+        if (Idx < nlim && Idy < n) {
+		for(j=0;j<k;j++){
+			sum0+=a[Idy*k+j]*b[Idx+j*n];
+			sum1+=a[Idy*k+j]*b[Idx+nlim+j*n];
+			sum2+=a[Idy*k+j]*b[Idx+2*nlim+j*n];
+			sum3+=a[Idy*k+j]*b[Idx+3*nlim+j*n];
 		}
+		c[(Idy*n)+(Idx)]=sum0;
+		c[(Idy*n)+(Idx+nlim)]=sum1;
+		c[(Idy*n)+(Idx+2*nlim)]=sum2;
+		c[(Idy*n)+(Idx+3*nlim)]=sum3;
 	}
 }
 
 
-
 void matmult_gpu3(int m, int n, int k, double **A, double **B, double **C)
 {
-	int sizeXBlock = 32;
+	int sizeXBlock = SIZEXBLOCK/4;
 	int sizeXGrid = (m+sizeXBlock-1)/sizeXBlock;
-	int sizeYBlock = 32;
+	int sizeYBlock = SIZEYBLOCK;
 	int sizeYGrid =  (n+sizeYBlock-1)/sizeYBlock;
 	double *a_d;
 	double *b_d;
@@ -177,13 +155,12 @@ void matmult_gpu3(int m, int n, int k, double **A, double **B, double **C)
 
 	dim3 DimGrid(sizeXGrid,sizeYGrid);
 	dim3 DimBlock(sizeXBlock, sizeYBlock);
-
 	checkCudaErrors(cudaMalloc((void**)&a_d,m*k*sizeof(double)));
 	checkCudaErrors(cudaMalloc((void**)&b_d,k*n*sizeof(double)));
 	checkCudaErrors(cudaMalloc((void**)&c_d,m*n*sizeof(double)));
 	checkCudaErrors(cudaMemcpy(a_d,A[0], m*k*sizeof(double),cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));
-
+	checkCudaErrors(cudaMemcpy(b_d,B[0], k*n*sizeof(double),cudaMemcpyHostToDevice));	
+	checkCudaErrors(cudaGetLastError());
 	gpu3<<< DimGrid, DimBlock >>>(m,n,k,a_d,b_d,c_d);
 	checkCudaErrors(cudaDeviceSynchronize());
 	checkCudaErrors(cudaGetLastError());
@@ -201,13 +178,13 @@ __global__ void gpu2(int m, int n, int k, double *a, double *b, double *c)
 	double sum2=0;
 	int globalThreadIdx=blockIdx.x*blockDim.x+threadIdx.x;
 	int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;	
-	if (globalThreadIdx < m && globalThreadIdy < n/2) {
+	if (globalThreadIdx < m/2 && globalThreadIdy < n) {
 		for(j=0;j<k;j++){
-			sum1+=a[globalThreadIdx*k+j]*b[globalThreadIdy+j*n];
-			sum2+=a[globalThreadIdx*k+j]*b[(globalThreadIdy+n/2)+j*n];
+			sum1+=a[globalThreadIdy*k+j]*b[globalThreadIdx+j*n];
+			sum2+=a[globalThreadIdy*k+j]*b[(globalThreadIdx+n/2)+j*n];
 		}
-		c[globalThreadIdy+globalThreadIdx*n]=sum1;
-		c[globalThreadIdy+n/2+globalThreadIdx*n]=sum2;		
+		c[globalThreadIdx+globalThreadIdy*n]=sum1;
+		c[globalThreadIdx+n/2+globalThreadIdy*n]=sum2;		
 	}
 }
 
@@ -254,9 +231,9 @@ __global__ void gpu1(int m, int n, int k, double *a, double *b, double *c)
 	int globalThreadIdy=blockIdx.y*blockDim.y+threadIdx.y;	
 	if (globalThreadIdx < m && globalThreadIdy < n) {
 		for(j=0;j<k;j++){
-			sum+=a[globalThreadIdx*k+j]*b[globalThreadIdy+j*n];
+			sum+=a[globalThreadIdy*k+j]*b[globalThreadIdx+j*n];
 		}
-		c[globalThreadIdy+globalThreadIdx*n]=sum;	
+		c[globalThreadIdx+globalThreadIdy*n]=sum;	
 	}
 }
 
@@ -301,7 +278,6 @@ void matmult_lib(int m, int n, int k, double **A, double **B, double **C){
 void matmult_gpulib(int m, int n, int k, double **A, double **B, double **C){
 	double alpha, beta,*A_d, *B_d, *C_d;
 	alpha = 1.0; beta = 0.0;
-	cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans, n, m, k, alpha, B[0], n, A[0], k, beta, C[0], n);		
 	checkCudaErrors(cudaMalloc((void**)&A_d, (m*k*sizeof(double*))));
 	checkCudaErrors(cudaMalloc((void**)&B_d, (k*n*sizeof(double*))));
 	checkCudaErrors(cudaMalloc((void**)&C_d, (m*n*sizeof(double*)))); 
