@@ -27,13 +27,13 @@ __global__ void gpu5(int m, int n, int k, double *a, double *b, double *c){
 	__shared__ double B_s[SIZEXBLOCK][SIZEXBLOCK];
 	if (globalThreadIdx < m && globalThreadIdy < n) {
 		for(j=0;j<k; j+=SIZEXBLOCK){
-			A_s[threadIdx.y][threadIdx.x]=a[globalThreadIdy+(j+threadIdx.x)*k];
-			B_s[threadIdx.x][threadIdx.y]=b[globalThreadIdx*n+j+threadIdx.y];
+			A_s[threadIdx.x][threadIdx.y]=a[globalThreadIdx+(j+threadIdx.y)*k];
+			B_s[threadIdx.y][threadIdx.x]=b[globalThreadIdy*n+j+threadIdx.x];
 			__syncthreads();
 			for (i =0; i< SIZEXBLOCK; i++){
 				if (j+i<k){
 				//	if(m%SIZEXBLOCK==0 || n/SIZEXBLOCK == 0 || j<k-SIZEXBLOCK){
-						sum+=A_s[threadIdx.y][i]*B_s[threadIdx.x][i];
+						sum+=A_s[threadIdx.x][i]*B_s[threadIdx.y][i];
 //					} else if( j<k-SIZEXBLOCK ){
 //						sum+=A_s[threadIdx.y][i]*b[globalThreadIdx*n+i+j];
 				//	}else if ((threadIdx.y < n%SIZEXBLOCK && j>k-SIZEXBLOCK)){
@@ -45,7 +45,7 @@ __global__ void gpu5(int m, int n, int k, double *a, double *b, double *c){
 			}
 			__syncthreads();
 		}
-		c[globalThreadIdy+globalThreadIdx*n]=sum;	
+		c[globalThreadIdx+globalThreadIdy*n]=sum;	
 	}
 }
 
