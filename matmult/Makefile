@@ -4,9 +4,10 @@ LIBOBJS	= matmultlib.o
 
 OPT	= -g -arch=sm_20
 PIC	= -Xcompiler -fpic
-XOPTS = -Xptxas -v
+XOPTS = -Xptxas -v #-maxrregcount 32
 
-CXX	= nvcc
+CXX	= nvcc #-maxregcount 32
+
 CXXFLAGS = $(OPT) $(PIC) $(XOPTS)
 
 CUDA_PATH ?= /appl/cuda/6.5
