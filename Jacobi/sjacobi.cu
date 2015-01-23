@@ -46,12 +46,12 @@ int main(int argc, char *argv[])
 	if (argc == 2)
 	{	
 		N = atoi(argv[1]);
-		if (N <= 18){ 
+		if (N <= 34){ 
 			sizeXBlock = N-2; 
 			sizeXGrid = 1;
 		} else {	
-			sizeXBlock = 16; // each block can be at most (max is 512!!)
-			sizeXGrid = ((N-2)+sizeXBlock-1)/sizeXBlock;
+			sizeXBlock = 32; // each block can be at most (max is 512!!)
+			sizeXGrid = ((32+sizeXBlock-1)/sizeXBlock;
 		}
 	}
 
@@ -75,10 +75,10 @@ int main(int argc, char *argv[])
 	sdkCreateTimer(&timeMem1);
 
 	StopWatchInterface *timeMem2; //time to copy to device
-	sdkCreateTimer(&timeMem1);
+	sdkCreateTimer(&timeMem2);
 
 	StopWatchInterface *timeMem3; //time to copy to host
-	sdkCreateTimer(&timeMem1);
+	sdkCreateTimer(&timeMem3);
 
 	// allocating solution and forcing term in the host 
 	f_h     = (double *)malloc(N*N * sizeof(double));
@@ -168,8 +168,8 @@ int main(int argc, char *argv[])
 	double tM2 = sdkGetTimerValue(&timeMem2);
 	double tM3 = sdkGetTimerValue(&timeMem3);
 
-	printf("Kernel time: %lf \n", tK/1e3);
-	printf("Memory time: %lf \n", (tM1 + tM2 + tM3)/1e3);
+	printf("%lf \t", tK/1e3);
+	printf("%lf \t", (tM1 + tM2 + tM3)/1e3);
 
 	//printf("Block size: %i x %i \n", sizeXBlock,sizeXBlock);
 	//printf("Grid size: %i x %i \n", sizeXGrid, sizeXGrid);
@@ -179,12 +179,12 @@ int main(int argc, char *argv[])
 	gettimeofday(&t2, NULL);
 	double  walltime = t2.tv_sec - t1.tv_sec + (t2.tv_usec -t1.tv_usec) / 1.e6;
 	double cputime = walltime - gputime;
-	printf("Wall time: %lf \n", walltime);
-	printf("CPU time: %lf \n", cputime);
+	printf("%lf \t", walltime);
+	printf("%lf \t", cputime);
 
 	double kerneltime = tK/max_iter;
 	double flops = ((N*N*5)/1e9)/(kerneltime/1e3);
-	printf("Performance [GFlop/s]: %lf \n", flops);
+	printf("%lf \t", flops);
 	
 	
 	return 0;
